@@ -1,9 +1,13 @@
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
+use std::borrow::{Borrow, BorrowMut};
+use std::cell::{Ref, RefCell};
 use std::fmt::{Debug, Display, Formatter};
+use std::marker::PhantomData;
+use std::ops::Deref;
 use std::rc::{Rc};
+use std::rc::Weak;
 
 type Link<T> = Option<Rc<RefCell<Node<T>>>>;
+type WeakLink<T> = Option<Weak<RefCell<Node<T>>>>;
 
 #[derive(Debug)]
 struct Node<T> {
@@ -17,6 +21,14 @@ impl<T> Node<T> {
         Self { data, prev, next }
     }
 }
+
+// impl<T> Deref for Node<T> {
+//     type Target = T;
+//
+//     fn deref(&self) -> &Self::Target {
+//         &self.data
+//     }
+// }
 
 #[derive(Debug)]
 pub struct LinkedList<T> {
@@ -69,7 +81,7 @@ impl<T> LinkedList<T> {
             if let Some(before_last_node) = last_node.as_ref().borrow_mut().prev.take() {
                 before_last_node.as_ref().borrow_mut().next = None;
                 self.tail = Some(before_last_node.clone());
-            }else{
+            } else {
                 self.head.take();
             }
             self.len -= 1;
@@ -84,7 +96,7 @@ impl<T> LinkedList<T> {
             if let Some(after_first_node) = first_node.as_ref().borrow_mut().next.take() {
                 after_first_node.as_ref().borrow_mut().prev = None;
                 self.head = Some(after_first_node.clone());
-            }else{
+            } else {
                 self.tail.take();
             }
             self.len -= 1;
@@ -113,12 +125,12 @@ impl<T: Display> Display for LinkedList<T> {
         }
 
         let mut node_ref = self.head.as_ref().unwrap().clone();
-        write!(f, "[{}", node_ref.borrow().data)?;
+        write!(f, "[{}", node_ref.as_ref().borrow().data)?;
         loop {
             if let Some(ref next) = node_ref.clone().as_ref().borrow_mut().next {
                 write!(f, ",")?;
                 node_ref = next.clone();
-                write!(f, "{}", node_ref.borrow().data)?;
+                write!(f, "{}", node_ref.as_ref().borrow().data)?;
             } else {
                 break;
             }
@@ -128,7 +140,7 @@ impl<T: Display> Display for LinkedList<T> {
     }
 }
 
-impl<T> IntoIterator for LinkedList<T>{
+impl<T> IntoIterator for LinkedList<T> {
     type Item = <LinkedListIterator<T> as Iterator>::Item;
     type IntoIter = LinkedListIterator<T>;
 
@@ -138,29 +150,37 @@ impl<T> IntoIterator for LinkedList<T>{
 }
 
 pub struct RefLinkedListIterator<'a, T> {
-    list: &'a LinkedList<T>,
+    current: WeakLink<T>,
+    value: PhantomData<&'a T>
 }
 
-impl<'a, T> RefLinkedListIterator<'a, T>{
-    fn new(list:&LinkedList<T>)-> Self {
-        Self{list}
+impl<'a, T> RefLinkedListIterator<'a, T> {
+    fn new(list: &LinkedList<T>) -> Self {
+        let current : WeakLink<T> = list.head.map(|v| Rc::downgrade(&v)) ;
+        Self { current, value: PhantomData{} }
     }
 }
 
-impl<'a, T> IntoIterator for &'a LinkedList<T>{
-    type Item = <RefLinkedListIterator<T> as Iterator>::Item;
-    type IntoIter = RefLinkedListIterator<'a,T>;
+impl<'a, T> IntoIterator for &'a LinkedList<T> {
+    type Item = <RefLinkedListIterator<'a, T> as Iterator>::Item;
+    type IntoIter = RefLinkedListIterator<T>;
 
-    fn into_iter(&self) -> Self::IntoIter {
+    fn into_iter(self) -> Self::IntoIter {
         RefLinkedListIterator::new(self)
     }
 }
 
-impl<'a, T> Iterator for RefLinkedListIterator<'a, T>{
-    type Item = T;
+impl<T> Iterator for RefLinkedListIterator<T> {
+    type Item = Ref<'_, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.list.pop_front()
+        if let Some(node) = self.current.take() {
+            let result = Ref::map(node, |v| &node.data);
+            self.current = node.next.map(|v| Ref::map(v.as_ref().borrow(), |x| x));
+            return Some(result);
+        } else {
+            return None;
+        }
     }
 }
 
@@ -168,13 +188,13 @@ pub struct LinkedListIterator<T> {
     list: LinkedList<T>,
 }
 
-impl<T> LinkedListIterator<T>{
-    fn new(list:LinkedList<T>)-> Self {
-        Self{list}
+impl<T> LinkedListIterator<T> {
+    fn new(list: LinkedList<T>) -> Self {
+        Self { list }
     }
 }
 
-impl<T> Iterator for LinkedListIterator<T>{
+impl<T> Iterator for LinkedListIterator<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -182,7 +202,7 @@ impl<T> Iterator for LinkedListIterator<T>{
     }
 }
 
-impl<T> DoubleEndedIterator for LinkedListIterator<T>{
+impl<T> DoubleEndedIterator for LinkedListIterator<T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.list.pop_back()
     }
