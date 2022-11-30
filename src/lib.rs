@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::rc::{Rc};
 use std::rc::Weak;
+use std::thread::current;
 
 type Link<T> = Option<Rc<RefCell<Node<T>>>>;
 type WeakLink<T> = Option<Weak<RefCell<Node<T>>>>;
@@ -21,14 +22,6 @@ impl<T> Node<T> {
         Self { data, prev, next }
     }
 }
-
-// impl<T> Deref for Node<T> {
-//     type Target = T;
-//
-//     fn deref(&self) -> &Self::Target {
-//         &self.data
-//     }
-// }
 
 #[derive(Debug)]
 pub struct LinkedList<T> {
@@ -150,37 +143,33 @@ impl<T> IntoIterator for LinkedList<T> {
 }
 
 pub struct RefLinkedListIterator<'a, T> {
-    current: WeakLink<T>,
-    value: PhantomData<&'a T>
+    list: &'a LinkedList<T>,
+    current: &'a Link<T>,
 }
 
 impl<'a, T> RefLinkedListIterator<'a, T> {
-    fn new(list: &LinkedList<T>) -> Self {
-        let current : WeakLink<T> = list.head.map(|v| Rc::downgrade(&v)) ;
-        Self { current, value: PhantomData{} }
+    fn new(list: &'a LinkedList<T>) -> Self {
+        Self { list, current: &list.head }
     }
 }
 
 impl<'a, T> IntoIterator for &'a LinkedList<T> {
     type Item = <RefLinkedListIterator<'a, T> as Iterator>::Item;
-    type IntoIter = RefLinkedListIterator<T>;
+    type IntoIter = RefLinkedListIterator<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
         RefLinkedListIterator::new(self)
     }
 }
 
-impl<T> Iterator for RefLinkedListIterator<T> {
-    type Item = Ref<'_, T>;
+impl<'a, T> Iterator for RefLinkedListIterator<'a, T> {
+    type Item = Ref<'a,T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(node) = self.current.take() {
-            let result = Ref::map(node, |v| &node.data);
-            self.current = node.next.map(|v| Ref::map(v.as_ref().borrow(), |x| x));
-            return Some(result);
-        } else {
-            return None;
-        }
+        let next = &self.current.as_ref().unwrap().as_ref().borrow().next;
+        let t = self.current.as_ref().map(|v| Ref::map(v.as_ref().borrow(), |v| &v.data));
+        self.current = next;
+        t
     }
 }
 
