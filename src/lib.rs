@@ -144,12 +144,12 @@ impl<T> IntoIterator for LinkedList<T> {
 
 pub struct RefLinkedListIterator<'a, T> {
     list: &'a LinkedList<T>,
-    current: &'a Link<T>,
+    current: Option<Ref<'a, Node<T>>>,
 }
 
 impl<'a, T> RefLinkedListIterator<'a, T> {
     fn new(list: &'a LinkedList<T>) -> Self {
-        Self { list, current: &list.head }
+        Self { list, current: list.head.as_ref().map(|o| o.as_ref().borrow()) }
     }
 }
 
@@ -166,8 +166,8 @@ impl<'a, T> Iterator for RefLinkedListIterator<'a, T> {
     type Item = Ref<'a,T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let next = &self.current.as_ref().unwrap().as_ref().borrow().next;
-        let t = self.current.as_ref().map(|v| Ref::map(v.as_ref().borrow(), |v| &v.data));
+        let next = self.current.as_ref().unwrap().next.as_ref().map(|v| v.as_ref().borrow());
+        let t: Option<Ref<'a, T>> = self.current.take().map(|v| Ref::map(v, |v| &v.data));
         self.current = next;
         t
     }
