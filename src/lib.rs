@@ -1,14 +1,8 @@
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::{Ref, RefCell};
+use std::cell::{RefCell};
 use std::fmt::{Debug, Display, Formatter};
-use std::marker::PhantomData;
-use std::ops::Deref;
 use std::rc::{Rc};
-use std::rc::Weak;
-use std::thread::current;
 
 type Link<T> = Option<Rc<RefCell<Node<T>>>>;
-type WeakLink<T> = Option<Weak<RefCell<Node<T>>>>;
 
 #[derive(Debug)]
 struct Node<T> {
@@ -139,37 +133,6 @@ impl<T> IntoIterator for LinkedList<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         LinkedListIterator::new(self)
-    }
-}
-
-pub struct RefLinkedListIterator<'a, T> {
-    list: &'a LinkedList<T>,
-    current: Option<Ref<'a, Node<T>>>,
-}
-
-impl<'a, T> RefLinkedListIterator<'a, T> {
-    fn new(list: &'a LinkedList<T>) -> Self {
-        Self { list, current: list.head.as_ref().map(|o| o.as_ref().borrow()) }
-    }
-}
-
-impl<'a, T> IntoIterator for &'a LinkedList<T> {
-    type Item = <RefLinkedListIterator<'a, T> as Iterator>::Item;
-    type IntoIter = RefLinkedListIterator<'a, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        RefLinkedListIterator::new(self)
-    }
-}
-
-impl<'a, T> Iterator for RefLinkedListIterator<'a, T> {
-    type Item = Ref<'a,T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.current.as_ref().unwrap().next.as_ref().map(|v| v.as_ref().borrow());
-        let t: Option<Ref<'a, T>> = self.current.take().map(|v| Ref::map(v, |v| &v.data));
-        self.current = next;
-        t
     }
 }
 
