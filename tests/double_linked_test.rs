@@ -96,15 +96,3 @@ fn iter_test(){
         assert_eq!(x, expected[i]);
     }
 }
-
-#[test]
-fn ref_fiter_test(){
-    let mut list :LinkedList<i32> = LinkedList::new();
-    list.push_back(1);
-    list.push_back(2);
-    list.push_front(3);
-    let expected = [3,1,2];
-    for (i, x) in (&list).into_iter().enumerate() {
-        assert_eq!(*x, expected[i]);
-    }
-}

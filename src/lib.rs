@@ -1,4 +1,4 @@
-mod unsafe_linked_list;
+pub mod unsafe_linked_list;
 
 use std::cell::{RefCell};
 use std::fmt::{Debug, Display, Formatter};
